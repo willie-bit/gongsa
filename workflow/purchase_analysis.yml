@@ -1,106 +1,151 @@
-###############################################################################
-# 구매요청 자동 분석 및 업체 추천 워크플로우 - Dify DSL
-#
-# Dify에서 "DSL 가져오기(Import DSL)"로 이 파일을 업로드하면
-# 워크플로우가 자동 구성됩니다.
-#
-# 사전 준비:
-#   1. Knowledge Base에 vendor_evaluation.csv 업로드 후 dataset_id 교체
-#   2. HTTP 노드의 API 엔드포인트를 실제 환경에 맞게 수정
-#   3. LLM 노드의 모델을 사용 가능한 모델로 변경
-###############################################################################
-
+kind: app
+version: '0.1.5'
 app:
-  name: "구매요청 자동 분석 및 업체 추천"
-  description: "구매요청서를 업로드하면 공사내용을 자동 분석하고 최적 업체를 추천하는 워크플로우"
-  mode: "workflow"
-  icon: "📋"
-  icon_background: "#E4FBCC"
-
+  name: 구매요청 자동 분석 및 업체 추천
+  description: 구매요청서를 업로드하면 공사내용을 자동 분석하고 최적 업체를 추천하는 워크플로우
+  mode: workflow
+  icon: "\U0001F4CB"
+  icon_background: '#E4FBCC'
+  use_icon_as_answer_icon: false
 workflow:
+  features:
+    file_upload:
+      allowed_file_extensions:
+        - .pdf
+        - .docx
+        - .doc
+        - .hwp
+      allowed_file_types:
+        - document
+      allowed_file_upload_methods:
+        - local_file
+      fileUploadConfig:
+        file_size_limit: 15
+        batch_count_limit: 5
+      number_limits: 1
+      image:
+        enabled: false
+  environment_variables: []
+  conversation_variables: []
   graph:
     nodes:
-      ##########################################################################
-      # 1. 시작 노드 - 사용자 입력 정의
-      ##########################################################################
-      - id: "start"
-        type: "start"
-        title: "시작"
-        position:
-          x: 80
-          y: 280
-        data:
+      # ================================================================
+      # 노드 1: 시작 - 사용자 입력 (구매요청서 파일 + 추가 요구사항)
+      # ================================================================
+      - data:
+          title: 시작
+          type: start
           variables:
-            - variable: "purchase_request"
-              label: "구매요청서"
-              type: "file"
+            - type: file
+              variable: purchase_request
+              label: 구매요청서
               required: true
+              description: 공사내용이 담긴 구매요청서 문서 (PDF, DOCX, HWP)
               max_length: null
               options: []
-              description: "공사내용이 담긴 구매요청서 문서 (PDF, DOCX)"
               allowed_file_types:
-                - "document"
+                - document
               allowed_file_extensions:
-                - ".pdf"
-                - ".docx"
-                - ".doc"
-                - ".hwp"
-            - variable: "additional_requirements"
-              label: "추가 요구사항"
-              type: "text-input"
+                - .pdf
+                - .docx
+                - .doc
+                - .hwp
+              allowed_file_upload_methods:
+                - local_file
+            - type: text-input
+              variable: additional_requirements
+              label: 추가 요구사항
               required: false
+              description: 특별히 고려해야 할 사항이나 우선순위 (선택 입력)
               max_length: 2000
               options: []
-              description: "특별히 고려해야 할 사항이나 우선순위 (선택 입력)"
-
-      ##########################################################################
-      # 2. 문서 추출 노드 - PDF/DOCX에서 텍스트 추출
-      ##########################################################################
-      - id: "doc_extractor"
-        type: "document-extractor"
-        title: "문서 텍스트 추출"
+              default: ''
+        height: 118
+        id: start
         position:
-          x: 320
-          y: 280
-        data:
+          x: 80
+          y: 282
+        positionAbsolute:
+          x: 80
+          y: 282
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+      # ================================================================
+      # 노드 2: 문서 텍스트 추출 (Document Extractor)
+      # ================================================================
+      - data:
+          title: 문서 텍스트 추출
+          type: document-extractor
           variable_selector:
-            - "start"
-            - "purchase_request"
-
-      ##########################################################################
-      # 3. LLM 노드 - 공사내용 분석
-      ##########################################################################
-      - id: "analyze_document"
-        type: "llm"
-        title: "공사내용 분석"
+            - start
+            - purchase_request
+          is_array_file: false
+        height: 54
+        id: doc_extractor
         position:
-          x: 560
-          y: 280
-        data:
+          x: 380
+          y: 282
+        positionAbsolute:
+          x: 380
+          y: 282
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+      # ================================================================
+      # 노드 3: 공사내용 분석 (LLM)
+      # - 구매요청서 텍스트에서 공사 종류, 규모, 기술 요구사항 등 추출
+      # - 모델/provider를 실제 환경에 맞게 변경하세요
+      # ================================================================
+      - data:
+          title: 공사내용 분석
+          type: llm
           model:
-            provider: "openai"          # 실제 사용 모델로 변경
-            name: "gpt-4o"              # 실제 사용 모델로 변경
-            mode: "chat"
+            provider: openai
+            name: gpt-4o
+            mode: chat
             completion_params:
               temperature: 0.2
+              top_p: 1
+              frequency_penalty: 0
+              presence_penalty: 0
               max_tokens: 4096
           prompt_template:
-            - role: "system"
-              text: |
+            - id: system-msg
+              role: system
+              text: >-
                 당신은 건설/시설 공사 분야의 전문 분석가입니다.
+
                 구매요청서의 내용을 분석하여 공사의 핵심 정보를 정확하게 추출합니다.
 
+
                 다음 항목들을 반드시 분석하세요:
+
                 1. 공사 종류 (건축, 토목, 기계, 전기, 설비, 조경, 기타)
+
                 2. 공사 규모 (예상 금액 범위, 면적, 기간)
+
                 3. 기술 요구사항 (필요 자격, 특수 장비, 기술 수준)
+
                 4. 공사 위치 및 현장 조건
+
                 5. 주요 공사 항목 (세부 작업 리스트)
+
                 6. 특이사항 및 리스크 요소
+
                 7. 납기/공기 요건
 
+
                 반드시 아래 JSON 형식으로 응답하세요:
+
                 ```json
+
                 {
                   "construction_type": "공사 종류",
                   "construction_subtypes": ["세부 공종1", "세부 공종2"],
@@ -122,33 +167,63 @@ workflow:
                   "deadline": "납기/공기 정보",
                   "summary": "전체 요약 (2~3문장)"
                 }
+
                 ```
-            - role: "user"
-              text: |
+            - id: user-msg
+              role: user
+              text: >-
                 ## 구매요청서 내용:
+
                 {{#doc_extractor.text#}}
 
+
                 ## 추가 요구사항:
+
                 {{#start.additional_requirements#}}
 
+
                 위 구매요청서를 분석하여 JSON 형식으로 결과를 제공해주세요.
+          memory: null
+          context:
+            enabled: false
+            variable_selector: []
           vision:
             enabled: false
-
-      ##########################################################################
-      # 4. Code 노드 - 분석 결과 파싱 및 포맷팅
-      ##########################################################################
-      - id: "format_analysis"
-        type: "code"
-        title: "분석 결과 파싱"
+            configs:
+              detail: high
+        height: 98
+        id: analyze_document
         position:
-          x: 800
-          y: 280
-        data:
-          code_language: "python3"
-          code: |
+          x: 680
+          y: 282
+        positionAbsolute:
+          x: 680
+          y: 282
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+      # ================================================================
+      # 노드 4: 분석 결과 파싱 (Code)
+      # - LLM 응답에서 JSON 추출 → 구조화 데이터 변환
+      # - Knowledge Base 검색 쿼리 생성
+      # ================================================================
+      - data:
+          title: 분석 결과 파싱
+          type: code
+          variables:
+            - variable: analysis_text
+              value_selector:
+                - analyze_document
+                - text
+          code_language: python3
+          code: >-
             import json
+
             import re
+
 
             def main(analysis_text: str) -> dict:
                 """LLM 분석 결과에서 JSON을 추출하고 검증합니다."""
@@ -173,7 +248,7 @@ workflow:
 
                     parsed = json.loads(json_str)
 
-                    # 업체 검색용 쿼리 구성
+                    # 업체 검색용 쿼리 구성 (공사종류 + 세부공종 + 필요자격)
                     search_parts = []
                     if parsed.get("construction_type"):
                         search_parts.append(parsed["construction_type"])
@@ -193,7 +268,7 @@ workflow:
                         "is_valid": True,
                         "estimated_budget": estimated_budget
                     }
-                except (json.JSONDecodeError, AttributeError) as e:
+                except (json.JSONDecodeError, AttributeError):
                     return {
                         "parsed_analysis": "{}",
                         "construction_type": "파싱 오류",
@@ -201,78 +276,123 @@ workflow:
                         "is_valid": False,
                         "estimated_budget": "미확인"
                     }
-          variables:
-            - variable: "analysis_text"
-              value_selector:
-                - "analyze_document"
-                - "text"
           outputs:
             parsed_analysis:
-              type: "string"
+              type: string
+              children: null
             construction_type:
-              type: "string"
+              type: string
+              children: null
             search_query:
-              type: "string"
+              type: string
+              children: null
             is_valid:
-              type: "boolean"
+              type: boolean
+              children: null
             estimated_budget:
-              type: "string"
-
-      ##########################################################################
-      # 5. 지식 검색 노드 - 업체 평가 데이터 조회
-      ##########################################################################
-      - id: "vendor_search"
-        type: "knowledge-retrieval"
-        title: "업체 평가 데이터 검색"
+              type: string
+              children: null
+        height: 54
+        id: format_analysis
         position:
-          x: 1040
-          y: 280
-        data:
+          x: 980
+          y: 282
+        positionAbsolute:
+          x: 980
+          y: 282
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+      # ================================================================
+      # 노드 5: 업체 평가 데이터 검색 (Knowledge Retrieval)
+      # - Knowledge Base에 vendor_evaluation.csv 업로드 후 dataset_id 교체 필수
+      # ================================================================
+      - data:
+          title: 업체 평가 데이터 검색
+          type: knowledge-retrieval
           query_variable_selector:
-            - "format_analysis"
-            - "search_query"
+            - format_analysis
+            - search_query
           dataset_ids:
-            - "YOUR_DATASET_ID_HERE"    # Knowledge Base 업로드 후 실제 ID로 교체
-          retrieval_mode: "multiple"
+            - YOUR_DATASET_ID_HERE
+          retrieval_mode: multiple
+          single_retrieval_config:
+            model:
+              provider: openai
+              name: gpt-4o-mini
+              mode: chat
+              completion_params:
+                temperature: 0
+                max_tokens: 1000
           multiple_retrieval_config:
             top_k: 10
             score_threshold: 0.5
+            reranking_enable: false
             reranking_model:
-              provider: ""
-              model: ""
-
-      ##########################################################################
-      # 6. LLM 노드 - 업체 추천 및 근거 생성
-      ##########################################################################
-      - id: "recommend_vendor"
-        type: "llm"
-        title: "업체 추천"
+              provider: ''
+              model: ''
+            reranking_mode: null
+            weights: null
+        height: 54
+        id: vendor_search
         position:
           x: 1280
-          y: 280
-        data:
+          y: 282
+        positionAbsolute:
+          x: 1280
+          y: 282
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+      # ================================================================
+      # 노드 6: 업체 추천 (LLM)
+      # - 분석 결과 + 업체 데이터 → 3~5개 업체 추천 및 선정 근거 생성
+      # ================================================================
+      - data:
+          title: 업체 추천
+          type: llm
           model:
-            provider: "openai"          # 실제 사용 모델로 변경
-            name: "gpt-4o"              # 실제 사용 모델로 변경
-            mode: "chat"
+            provider: openai
+            name: gpt-4o
+            mode: chat
             completion_params:
               temperature: 0.3
+              top_p: 1
+              frequency_penalty: 0
+              presence_penalty: 0
               max_tokens: 4096
           prompt_template:
-            - role: "system"
-              text: |
+            - id: system-msg-2
+              role: system
+              text: >-
                 당신은 건설/시설 공사 업체 선정 전문가입니다.
+
                 공사내용 분석 결과와 업체 평가 데이터를 종합하여 최적의 업체를 추천합니다.
 
+
                 추천 시 다음 기준을 종합 평가하세요:
+
                 1. 공종 적합성: 해당 공사 종류의 시공 실적 보유 여부
+
                 2. 기술 역량: 필요 자격 및 장비 보유 여부
+
                 3. 과거 실적 평가: 기존 계약 이행 평가 점수
+
                 4. 가격 경쟁력: 과거 유사 공사 낙찰률/견적 수준
+
                 5. 신용/안정성: 경영 상태, 하자보수 이행률
 
+
                 반드시 아래 JSON 형식으로 3~5개 업체를 추천하세요:
+
                 ```json
+
                 {
                   "recommendations": [
                     {
@@ -289,48 +409,93 @@ workflow:
                   "selection_criteria": "선정 기준 요약",
                   "additional_considerations": "추가 고려사항"
                 }
+
                 ```
-            - role: "user"
-              text: |
+            - id: user-msg-2
+              role: user
+              text: >-
                 ## 공사내용 분석 결과:
+
                 {{#format_analysis.parsed_analysis#}}
 
+
                 ## 업체 평가 데이터:
+
                 {{#vendor_search.result#}}
 
+
                 ## 추가 요구사항:
+
                 {{#start.additional_requirements#}}
 
+
                 위 정보를 바탕으로 최적의 입찰업체를 추천해주세요.
+          memory: null
+          context:
+            enabled: false
+            variable_selector: []
           vision:
             enabled: false
-
-      ##########################################################################
-      # 7. Code 노드 - 최종 결과 JSON 포맷팅
-      ##########################################################################
-      - id: "format_output"
-        type: "code"
-        title: "최종 결과 포맷팅"
+            configs:
+              detail: high
+        height: 98
+        id: recommend_vendor
         position:
-          x: 1520
-          y: 280
-        data:
-          code_language: "python3"
-          code: |
+          x: 1580
+          y: 282
+        positionAbsolute:
+          x: 1580
+          y: 282
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+      # ================================================================
+      # 노드 7: 최종 결과 포맷팅 (Code)
+      # - 분석 + 추천 결과 통합 JSON 생성
+      # - 고액 계약 여부 판별 (1억 이상)
+      # ================================================================
+      - data:
+          title: 최종 결과 포맷팅
+          type: code
+          variables:
+            - variable: analysis_json
+              value_selector:
+                - format_analysis
+                - parsed_analysis
+            - variable: recommendation_text
+              value_selector:
+                - recommend_vendor
+                - text
+            - variable: construction_type
+              value_selector:
+                - format_analysis
+                - construction_type
+            - variable: estimated_budget
+              value_selector:
+                - format_analysis
+                - estimated_budget
+          code_language: python3
+          code: >-
             import json
+
             import re
+
             from datetime import datetime
+
 
             def main(analysis_json: str, recommendation_text: str, construction_type: str, estimated_budget: str) -> dict:
                 """분석 결과와 추천 결과를 최종 JSON으로 통합합니다."""
 
-                # 분석 결과 파싱
+                # 1. 분석 결과 파싱
                 try:
                     analysis = json.loads(analysis_json)
                 except json.JSONDecodeError:
                     analysis = {"error": "분석 결과 파싱 실패"}
 
-                # 추천 결과 파싱
+                # 2. 추천 결과 파싱
                 try:
                     json_match = re.search(r'```json\s*(.*?)\s*```', recommendation_text, re.DOTALL)
                     if json_match:
@@ -344,13 +509,11 @@ workflow:
                 except (json.JSONDecodeError, AttributeError):
                     recommendation = {"error": "추천 결과 파싱 실패"}
 
-                # 고액 계약 여부 판별 (알림 조건)
+                # 3. 고액 계약 여부 판별 (1억원 이상)
                 is_high_value = False
                 budget_str = estimated_budget.replace(",", "").replace(" ", "")
-                # "억" 단위 포함 시 고액으로 판별
                 if "억" in budget_str:
                     is_high_value = True
-                # 숫자만 추출하여 1억 이상이면 고액
                 numbers = re.findall(r'[\d.]+', budget_str)
                 for num_str in numbers:
                     try:
@@ -362,7 +525,14 @@ workflow:
                     except ValueError:
                         pass
 
-                # 최종 결과 조합
+                # 4. 1순위 업체명 추출
+                recommendations_list = recommendation.get("recommendations", [])
+                if recommendations_list:
+                    top_vendor = recommendations_list[0].get("company_name", "해당없음")
+                else:
+                    top_vendor = "추천 업체 없음"
+
+                # 5. 최종 결과 조합
                 final_result = {
                     "status": "success",
                     "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -372,155 +542,319 @@ workflow:
                         "construction_type": construction_type,
                         "estimated_budget": estimated_budget,
                         "is_high_value_contract": is_high_value,
-                        "recommended_vendor_count": len(recommendation.get("recommendations", []))
+                        "recommended_vendor_count": len(recommendations_list)
                     }
                 }
 
                 return {
                     "result_json": json.dumps(final_result, ensure_ascii=False, indent=2),
                     "is_high_value": is_high_value,
-                    "top_vendor": recommendation.get("recommendations", [{}])[0].get("company_name", "해당없음") if recommendation.get("recommendations") else "추천 업체 없음"
+                    "top_vendor": top_vendor
                 }
-          variables:
-            - variable: "analysis_json"
-              value_selector:
-                - "format_analysis"
-                - "parsed_analysis"
-            - variable: "recommendation_text"
-              value_selector:
-                - "recommend_vendor"
-                - "text"
-            - variable: "construction_type"
-              value_selector:
-                - "format_analysis"
-                - "construction_type"
-            - variable: "estimated_budget"
-              value_selector:
-                - "format_analysis"
-                - "estimated_budget"
           outputs:
             result_json:
-              type: "string"
+              type: string
+              children: null
             is_high_value:
-              type: "boolean"
+              type: boolean
+              children: null
             top_vendor:
-              type: "string"
-
-      ##########################################################################
-      # 8. 조건 분기 노드 - 고액 계약 알림 여부 판별
-      ##########################################################################
-      - id: "check_notification"
-        type: "if-else"
-        title: "고액 계약 확인"
+              type: string
+              children: null
+        height: 54
+        id: format_output
         position:
-          x: 1760
-          y: 280
-        data:
+          x: 1880
+          y: 282
+        positionAbsolute:
+          x: 1880
+          y: 282
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+      # ================================================================
+      # 노드 8: 조건 분기 - 고액 계약이면 알림 발송
+      # ================================================================
+      - data:
+          title: 고액 계약 확인
+          type: if-else
           conditions:
-            - id: "high_value_condition"
-              logical_operator: "and"
+            - id: high_value_true
+              logical_operator: and
               conditions:
-                - variable_selector:
-                    - "format_output"
-                    - "is_high_value"
-                  comparison_operator: "is"
-                  value: "true"
-
-      ##########################################################################
-      # 9-A. HTTP 요청 노드 - 알림 발송 (고액 계약일 때)
-      ##########################################################################
-      - id: "send_notification"
-        type: "http-request"
-        title: "알림 발송"
+                - comparison_operator: is
+                  value: 'true'
+                  variable_selector:
+                    - format_output
+                    - is_high_value
+                  id: cond-1
+        height: 126
+        id: check_notification
         position:
-          x: 2000
-          y: 160
-        data:
-          method: "POST"
-          url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"  # 실제 Slack Webhook URL로 교체
-          headers:
-            Content-Type: "application/json"
+          x: 2180
+          y: 282
+        positionAbsolute:
+          x: 2180
+          y: 282
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+      # ================================================================
+      # 노드 9-A: 알림 발송 (HTTP Request - Slack Webhook)
+      # - 고액 계약일 때만 실행
+      # - URL을 실제 Slack Webhook URL로 교체하세요
+      # ================================================================
+      - data:
+          title: 알림 발송
+          type: http-request
+          method: post
+          url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+          authorization:
+            type: no-auth
+            config: null
+          headers: ''
+          params: ''
           body:
-            type: "json"
-            data: |
-              {
-                "text": "🔔 *고액 계약 알림*\n\n공사 종류: {{#format_analysis.construction_type#}}\n예상 금액: {{#format_analysis.estimated_budget#}}\n추천 1순위 업체: {{#format_output.top_vendor#}}\n\n상세 결과를 확인하세요."
-              }
+            type: json
+            data:
+              - key: text
+                type: text
+                value: >-
+                  [고액 계약 알림]
+                  공사 종류: {{#format_analysis.construction_type#}}
+                  예상 금액: {{#format_analysis.estimated_budget#}}
+                  추천 1순위 업체: {{#format_output.top_vendor#}}
+                  상세 결과를 확인하세요.
           timeout:
             connect: 10
             read: 30
             write: 30
-          authorization:
-            type: "no-auth"
-
-      ##########################################################################
-      # 9-B. HTTP 요청 노드 - 결과 저장 (Google Drive 등)
-      ##########################################################################
-      - id: "save_result"
-        type: "http-request"
-        title: "결과 저장"
+          mask:
+            enabled: false
+        height: 54
+        id: send_notification
         position:
-          x: 2000
-          y: 400
-        data:
-          method: "POST"
-          url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"  # 실제 API로 교체
-          headers:
-            Content-Type: "application/json"
-            Authorization: "Bearer YOUR_ACCESS_TOKEN"    # 실제 토큰으로 교체
+          x: 2480
+          y: 182
+        positionAbsolute:
+          x: 2480
+          y: 182
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+      # ================================================================
+      # 노드 9-B: 결과 저장용 알림 (HTTP Request)
+      # - 분석 완료 알림 또는 외부 저장소 API 호출
+      # - URL을 실제 환경에 맞게 교체하세요
+      # ================================================================
+      - data:
+          title: 결과 저장 알림
+          type: http-request
+          method: post
+          url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+          authorization:
+            type: no-auth
+            config: null
+          headers: ''
+          params: ''
           body:
-            type: "json"
-            data: |
-              {
-                "name": "구매분석_결과_{{#format_analysis.construction_type#}}.json",
-                "content": {{#format_output.result_json#}}
-              }
+            type: json
+            data:
+              - key: text
+                type: text
+                value: >-
+                  [구매요청 분석 완료]
+                  공사 종류: {{#format_analysis.construction_type#}}
+                  추천 1순위 업체: {{#format_output.top_vendor#}}
           timeout:
             connect: 10
             read: 30
             write: 30
-          authorization:
-            type: "no-auth"
-
-      ##########################################################################
-      # 10. 종료 노드 - 최종 결과 반환
-      ##########################################################################
-      - id: "end"
-        type: "end"
-        title: "종료"
+          mask:
+            enabled: false
+        height: 54
+        id: save_result
         position:
-          x: 2240
-          y: 280
-        data:
+          x: 2480
+          y: 382
+        positionAbsolute:
+          x: 2480
+          y: 382
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+      # ================================================================
+      # 노드 10-A: 종료 (고액 알림 경로)
+      # ================================================================
+      - data:
+          title: 종료 (고액)
+          type: end
           outputs:
-            - variable: "result"
+            - variable: result
               value_selector:
-                - "format_output"
-                - "result_json"
-              type: "string"
+                - format_output
+                - result_json
+        height: 90
+        id: end_high
+        position:
+          x: 2780
+          y: 182
+        positionAbsolute:
+          x: 2780
+          y: 182
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
 
+      # ================================================================
+      # 노드 10-B: 종료 (일반 경로)
+      # ================================================================
+      - data:
+          title: 종료 (일반)
+          type: end
+          outputs:
+            - variable: result
+              value_selector:
+                - format_output
+                - result_json
+        height: 90
+        id: end_normal
+        position:
+          x: 2780
+          y: 382
+        positionAbsolute:
+          x: 2780
+          y: 382
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+
+    # ================================================================
+    # 엣지 연결 정의
+    # ================================================================
     edges:
-      - source: "start"
-        target: "doc_extractor"
-      - source: "doc_extractor"
-        target: "analyze_document"
-      - source: "analyze_document"
-        target: "format_analysis"
-      - source: "format_analysis"
-        target: "vendor_search"
-      - source: "vendor_search"
-        target: "recommend_vendor"
-      - source: "recommend_vendor"
-        target: "format_output"
-      - source: "format_output"
-        target: "check_notification"
-      - source: "check_notification"
-        sourceHandle: "if"
-        target: "send_notification"
-      - source: "check_notification"
-        sourceHandle: "else"
-        target: "save_result"
-      - source: "send_notification"
-        target: "save_result"
-      - source: "save_result"
-        target: "end"
+      - id: start->doc_extractor
+        source: start
+        sourceHandle: source
+        target: doc_extractor
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: start
+          targetType: document-extractor
+
+      - id: doc_extractor->analyze_document
+        source: doc_extractor
+        sourceHandle: source
+        target: analyze_document
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: document-extractor
+          targetType: llm
+
+      - id: analyze_document->format_analysis
+        source: analyze_document
+        sourceHandle: source
+        target: format_analysis
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: llm
+          targetType: code
+
+      - id: format_analysis->vendor_search
+        source: format_analysis
+        sourceHandle: source
+        target: vendor_search
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: code
+          targetType: knowledge-retrieval
+
+      - id: vendor_search->recommend_vendor
+        source: vendor_search
+        sourceHandle: source
+        target: recommend_vendor
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: knowledge-retrieval
+          targetType: llm
+
+      - id: recommend_vendor->format_output
+        source: recommend_vendor
+        sourceHandle: source
+        target: format_output
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: llm
+          targetType: code
+
+      - id: format_output->check_notification
+        source: format_output
+        sourceHandle: source
+        target: check_notification
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: code
+          targetType: if-else
+
+      - id: check_notification-true->send_notification
+        source: check_notification
+        sourceHandle: 'true'
+        target: send_notification
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: if-else
+          targetType: http-request
+
+      - id: check_notification-false->save_result
+        source: check_notification
+        sourceHandle: 'false'
+        target: save_result
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: if-else
+          targetType: http-request
+
+      - id: send_notification->end_high
+        source: send_notification
+        sourceHandle: source
+        target: end_high
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: http-request
+          targetType: end
+
+      - id: save_result->end_normal
+        source: save_result
+        sourceHandle: source
+        target: end_normal
+        targetHandle: target
+        type: custom
+        data:
+          sourceType: http-request
+          targetType: end
