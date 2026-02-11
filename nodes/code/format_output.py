@@ -14,7 +14,7 @@ Dify 워크플로우의 "최종 결과 포맷팅" Code 노드에 사용합니다
     estimated_budget (String)    ← format_analysis 노드의 estimated_budget
 - 출력 변수:
     result_json (String)   - 최종 통합 결과 JSON 문자열
-    is_high_value (Boolean) - 고액 계약 여부 (알림 조건)
+    is_high_value (Number)  - 고액 계약 여부 (1=고액, 0=일반)
     top_vendor (String)     - 1순위 추천 업체명
 """
 
@@ -57,7 +57,27 @@ def main(
         recommendation = {"error": "추천 결과 파싱 실패"}
 
     # ── 3. 고액 계약 여부 판별 ──
-    is_high_value = _check_high_value(estimated_budget)
+    try:
+        cleaned = estimated_budget.replace(",", "").replace(" ", "")
+        is_high_value = 0
+
+        if "억" in cleaned:
+            is_high_value = 1
+        else:
+            numbers = re.findall(r'[\d.]+', cleaned)
+            for num_str in numbers:
+                try:
+                    num = float(num_str)
+                    if "만" in cleaned and num >= 10000:
+                        is_high_value = 1
+                        break
+                    if num >= 100000000:
+                        is_high_value = 1
+                        break
+                except ValueError:
+                    continue
+    except (AttributeError, TypeError):
+        is_high_value = 0
 
     # ── 4. 1순위 업체명 추출 ──
     recommendations_list = recommendation.get("recommendations", [])
@@ -85,31 +105,3 @@ def main(
         "is_high_value": is_high_value,
         "top_vendor": top_vendor
     }
-
-
-def _check_high_value(budget_str: str) -> bool:
-    """
-    예상 금액 문자열에서 고액 계약 여부를 판별합니다.
-    기준: 1억원 이상이면 고액 계약으로 분류
-    """
-    cleaned = budget_str.replace(",", "").replace(" ", "")
-
-    # "억" 단위 포함 시 고액
-    if "억" in cleaned:
-        return True
-
-    # 숫자만 추출하여 금액 판별
-    numbers = re.findall(r'[\d.]+', cleaned)
-    for num_str in numbers:
-        try:
-            num = float(num_str)
-            # "만" 단위에서 10000만원 = 1억
-            if "만" in cleaned and num >= 10000:
-                return True
-            # 원 단위에서 1억 = 100,000,000
-            if num >= 100000000:
-                return True
-        except ValueError:
-            continue
-
-    return False
