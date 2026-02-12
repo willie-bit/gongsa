@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_BASE_URL =
-  process.env.MISO_API_BASE_URL || "https://api.holdings.miso.gs/ext/v1";
-const API_KEY = process.env.MISO_API_KEY || "";
-
 export async function POST(request: NextRequest) {
+  const API_BASE_URL =
+    process.env.MISO_API_BASE_URL || "https://api.holdings.miso.gs/ext/v1";
+  const API_KEY = process.env.MISO_API_KEY || "";
+
   if (!API_KEY) {
     return NextResponse.json(
       {
